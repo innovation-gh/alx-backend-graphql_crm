@@ -1,11 +1,31 @@
 import graphene
 from graphene_django import DjangoObjectType
+from graphene_django.filter import DjangoFilterConnectionField
 from django.core.exceptions import ValidationError
 from django.db import transaction
 import re
 from .models import Customer, Product, Order
 
-# Type Definitions
+# Relay Node Types (with filtering)
+class CustomerNode(DjangoObjectType):
+    class Meta:
+        model = Customer
+        filter_fields = ["name", "email", "phone"]
+        interfaces = (graphene.relay.Node,)
+
+class ProductNode(DjangoObjectType):
+    class Meta:
+        model = Product
+        filter_fields = ["name", "price", "stock"]
+        interfaces = (graphene.relay.Node,)
+
+class OrderNode(DjangoObjectType):
+    class Meta:
+        model = Order
+        filter_fields = ["customer__name", "customer__email", "products__name", "total_amount"]
+        interfaces = (graphene.relay.Node,)
+
+# Regular Types (for non-relay queries/mutations)
 class CustomerType(DjangoObjectType):
     class Meta:
         model = Customer
@@ -158,6 +178,12 @@ class Mutation(graphene.ObjectType):
     create_order = CreateOrder.Field()
 
 class Query(graphene.ObjectType):
+    # Relay filterable connections
+    all_customers = DjangoFilterConnectionField(CustomerNode)
+    all_products = DjangoFilterConnectionField(ProductNode)
+    all_orders = DjangoFilterConnectionField(OrderNode)
+
+    # Regular queries
     customers = graphene.List(CustomerType)
     products = graphene.List(ProductType)
     orders = graphene.List(OrderType)
