@@ -2,21 +2,24 @@ import graphene
 from graphene_django import DjangoObjectType
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from .models import Customer, Product, Order
 import re
+from .models import Customer, Product, Order
 
 # Type Definitions
 class CustomerType(DjangoObjectType):
     class Meta:
         model = Customer
+        fields = "__all__"
 
 class ProductType(DjangoObjectType):
     class Meta:
         model = Product
+        fields = "__all__"
 
 class OrderType(DjangoObjectType):
     class Meta:
         model = Order
+        fields = "__all__"
 
 # Input Types
 class CustomerInput(graphene.InputObjectType):
@@ -42,9 +45,9 @@ class CreateCustomer(graphene.Mutation):
     customer = graphene.Field(CustomerType)
     message = graphene.String()
 
-    @staticmethod
-    def mutate(root, info, input):
-        # Validate phone format if provided
+    @classmethod
+    def mutate(cls, root, info, input):
+        # Validate phone format
         if input.phone and not re.match(r'^(\+\d{1,15}|\d{3}-\d{3}-\d{4})$', input.phone):
             raise ValidationError("Invalid phone format. Use +1234567890 or 123-456-7890")
         
@@ -69,14 +72,18 @@ class BulkCreateCustomers(graphene.Mutation):
     customers = graphene.List(CustomerType)
     errors = graphene.List(graphene.String)
 
-    @staticmethod
+    @classmethod
     @transaction.atomic
-    def mutate(root, info, inputs):
+    def mutate(cls, root, info, inputs):
         customers = []
         errors = []
         
         for input in inputs:
             try:
+                # Validate phone format
+                if input.phone and not re.match(r'^(\+\d{1,15}|\d{3}-\d{3}-\d{4})$', input.phone):
+                    raise ValidationError("Invalid phone format")
+                
                 customer = Customer(
                     name=input.name,
                     email=input.email,
@@ -96,8 +103,8 @@ class CreateProduct(graphene.Mutation):
 
     product = graphene.Field(ProductType)
 
-    @staticmethod
-    def mutate(root, info, input):
+    @classmethod
+    def mutate(cls, root, info, input):
         if input.price <= 0:
             raise ValidationError("Price must be positive")
         if input.stock and input.stock < 0:
@@ -117,8 +124,8 @@ class CreateOrder(graphene.Mutation):
 
     order = graphene.Field(OrderType)
 
-    @staticmethod
-    def mutate(root, info, input):
+    @classmethod
+    def mutate(cls, root, info, input):
         try:
             customer = Customer.objects.get(pk=input.customer_id)
         except Customer.DoesNotExist:
@@ -136,9 +143,10 @@ class CreateOrder(graphene.Mutation):
             raise ValidationError("At least one product is required")
         
         order = Order(customer=customer)
-        order.save()  # First save to get an ID
+        order.save()  # First save to get ID
         order.products.set(products)  # Set many-to-many relationship
-        order.save()  # Save again to calculate total_amount
+        order.total_amount = sum(p.price for p in products)
+        order.save()  # Save again with calculated total
         
         return CreateOrder(order=order)
 
