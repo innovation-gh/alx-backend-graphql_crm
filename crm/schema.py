@@ -4,8 +4,8 @@ from graphene_django.filter import DjangoFilterConnectionField
 from django.core.exceptions import ValidationError
 from django.db import transaction
 import re
-from .models import Customer, Product 
-from crm.models import Customer, Product, Order
+from crm.models import Product
+from .models import Customer, Product, Order
 
 # Relay Node Types (with filtering)
 class CustomerNode(DjangoObjectType):
