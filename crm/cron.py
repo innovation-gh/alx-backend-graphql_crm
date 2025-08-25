@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
-import requests
-import json
+from gql import gql, Client
+from gql.transport.requests import RequestsHTTPTransport
 
 def log_crm_heartbeat():
     """
@@ -23,34 +23,28 @@ def log_crm_heartbeat():
         # Optional: Query GraphQL hello field to verify endpoint is responsive
         graphql_url = "http://localhost:8000/graphql"
         
+        # Setup GraphQL client
+        transport = RequestsHTTPTransport(url=graphql_url)
+        client = Client(transport=transport, fetch_schema_from_transport=False)
+        
         # GraphQL query for hello field
-        query = {
-            "query": "{ hello }"
-        }
+        query = gql("""
+            query {
+                hello
+            }
+        """)
         
-        # Make request to GraphQL endpoint
-        response = requests.post(
-            graphql_url,
-            json=query,
-            headers={"Content-Type": "application/json"},
-            timeout=5
-        )
+        # Execute the query
+        result = client.execute(query)
         
-        if response.status_code == 200:
-            data = response.json()
-            if 'data' in data and 'hello' in data['data']:
-                heartbeat_message += " - GraphQL endpoint responsive"
-            else:
-                heartbeat_message += " - GraphQL endpoint available but hello field not found"
+        if result and 'hello' in result:
+            heartbeat_message += " - GraphQL endpoint responsive"
         else:
-            heartbeat_message += f" - GraphQL endpoint returned status {response.status_code}"
+            heartbeat_message += " - GraphQL endpoint available but hello field not found"
             
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         # If GraphQL query fails, still log the basic heartbeat
         heartbeat_message += f" - GraphQL endpoint unavailable: {str(e)}"
-    except Exception as e:
-        # Handle any other exceptions
-        heartbeat_message += f" - Error checking GraphQL: {str(e)}"
     
     # Append heartbeat message to log file
     try:
