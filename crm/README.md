@@ -1,26 +1,46 @@
-# CRM GraphQL Application with Celery Tasks
+# CRM GraphQL Application with Celery Beat
 
-This Django application provides a GraphQL API for managing customers, products, and orders, with automated weekly reporting using Celery and Redis.
+A Django-based Customer Relationship Management (CRM) system with GraphQL API and automated task scheduling using Celery Beat.
 
 ## Features
 
-- GraphQL API with CRUD operations for customers, products, and orders
-- Automated weekly CRM reports using Celery Beat
-- Redis-based task queue
-- Bulk operations support
-- Stock management and low-stock alerts
+- GraphQL API for customers, orders, and products
+- Automated task scheduling with Celery Beat
+- Background report generation
+- System health monitoring
+- Automated cleanup and reminder tasks
 
 ## Prerequisites
 
 - Python 3.8+
 - Redis server
-- Django 4.2+
+- Git
 
-## Installation and Setup
+## Installation & Setup
 
-### 1. Install Redis
+### 1. Clone the Repository
 
-**Ubuntu/Debian:**
+```bash
+git clone https://github.com/your-username/alx-backend-graphql_crm.git
+cd alx-backend-graphql_crm
+```
+
+### 2. Create Virtual Environment
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Install and Start Redis
+
+#### Ubuntu/Debian:
 ```bash
 sudo apt update
 sudo apt install redis-server
@@ -28,40 +48,56 @@ sudo systemctl start redis-server
 sudo systemctl enable redis-server
 ```
 
-**macOS (with Homebrew):**
+#### macOS:
 ```bash
 brew install redis
 brew services start redis
 ```
 
-**Windows:**
-Download and install from [Redis official website](https://redis.io/download)
+#### Windows:
+Download and install Redis from: https://github.com/microsoftarchive/redis/releases
 
-### 2. Install Python Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Configure Django Settings
+### 5. Configure Django Settings
 
 Ensure your `crm/settings.py` includes:
-- `django_celery_beat` in `INSTALLED_APPS`
-- Celery configuration with Redis broker
-- Celery Beat schedule configuration
 
-### 4. Run Database Migrations
+```python
+INSTALLED_APPS = [
+    # ... other apps
+    'django_celery_beat',
+    'graphene_django',
+]
 
-```bash
-python manage.py migrate
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BEAT_SCHEDULE = {
+    'generate-crm-report': {
+        'task': 'crm.tasks.generate_crm_report',
+        'schedule': crontab(day_of_week='mon', hour=6, minute=0),
+    },
+}
 ```
 
-This will create the necessary database tables including those for django-celery-beat.
+### 6. Run Database Migrations
 
-### 5. Create Superuser (Optional)
+```bash
+python manage.py makemigrations
+python manage.py migrate
+python manage.py migrate django_celery_beat
+```
+
+### 7. Create Superuser (Optional)
 
 ```bash
 python manage.py createsuperuser
+```
+
+### 8. Make Cron Scripts Executable
+
+```bash
+chmod +x crm/cron_jobs/clean_inactive_customers.sh
+chmod +x crm/cron_jobs/send_order_reminders.py
 ```
 
 ## Running the Application
@@ -72,221 +108,251 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-The GraphQL endpoint will be available at: `http://127.0.0.1:8000/graphql/`
+The GraphQL endpoint will be available at: http://localhost:8000/graphql
 
-### 2. Start Celery Worker
-
-Open a new terminal and run:
+### 2. Start Redis Server
 
 ```bash
-celery -A crm worker -l info
+redis-server
 ```
 
-This starts the Celery worker process that will execute tasks.
+### 3. Start Celery Worker
 
-### 3. Start Celery Beat Scheduler
+In a new terminal:
+```bash
+celery -A crm worker --loglevel=info
+```
 
-Open another terminal and run:
+### 4. Start Celery Beat Scheduler
+
+In another terminal:
+```bash
+celery -A crm beat --loglevel=info
+```
+
+### 5. Install System Cron Jobs (Optional)
+
+For system-level cron jobs:
 
 ```bash
-celery -A crm beat -l info
+# Install customer cleanup cron job
+crontab crm/cron_jobs/customer_cleanup_crontab.txt
+
+# Install order reminders cron job  
+crontab crm/cron_jobs/order_reminders_crontab.txt
+
+# View installed cron jobs
+crontab -l
 ```
 
-This starts the Celery Beat scheduler that will trigger periodic tasks.
-
-### 4. Verify Setup
-
-Check that Redis is running:
-```bash
-redis-cli ping
-```
-Should return `PONG`.
-
-## Monitoring and Logs
-
-### CRM Report Logs
-
-Weekly reports are logged to `/tmp/crm_report_log.txt`. Each entry includes:
-- Timestamp
-- Total number of customers
-- Total number of orders  
-- Total revenue
-
-Example log entry:
-```
-2024-01-15 06:00:01 - Report: 25 customers, 150 orders, 5420.50 revenue.
-```
-
-### Django Logs
-
-Application logs are written to `/tmp/django_crm.log`.
-
-### Viewing Logs
+### 6. Setup django-crontab Jobs
 
 ```bash
-# View CRM report logs
-tail -f /tmp/crm_report_log.txt
+# Add django-crontab jobs to system crontab
+python manage.py crontab add
 
-# View Django application logs
-tail -f /tmp/django_crm.log
+# Show current crontab jobs
+python manage.py crontab show
+
+# Remove crontab jobs (if needed)
+python manage.py crontab remove
 ```
 
-## GraphQL Operations
+## Verification Steps
 
-### Sample Queries
+### 1. Test GraphQL Endpoint
 
-**Get all customers:**
+Visit http://localhost:8000/graphql and run:
+
 ```graphql
 query {
   customers {
     id
     name
     email
-    phone
   }
-}
-```
-
-**Get all orders with customer details:**
-```graphql
-query {
   orders {
     id
-    customer {
-      name
-      email
-    }
-    products {
-      name
-      price
-    }
     totalAmount
     orderDate
   }
 }
 ```
 
-### Sample Mutations
-
-**Create a customer:**
-```graphql
-mutation {
-  createCustomer(input: {
-    name: "John Doe"
-    email: "john@example.com"
-    phone: "+1234567890"
-  }) {
-    customer {
-      id
-      name
-      email
-    }
-    message
-  }
-}
-```
-
-**Update low stock products:**
-```graphql
-mutation {
-  updateLowStockProducts {
-    success
-    message
-    count
-    updatedProducts {
-      id
-      name
-      oldStock
-      newStock
-    }
-  }
-}
-```
-
-## Celery Tasks
-
-### Available Tasks
-
-1. **`generate_crm_report`** - Generates weekly CRM report (scheduled for Mondays at 6:00 AM)
-2. **`test_task`** - Simple test task to verify Celery is working
-
-### Manual Task Execution
-
-You can manually trigger tasks using Django shell:
+### 2. Verify Celery Tasks
 
 ```bash
+# Test the CRM report task manually
 python manage.py shell
+>>> from crm.tasks import generate_crm_report
+>>> generate_crm_report.delay()
 ```
 
-```python
-from crm.tasks import generate_crm_report, test_task
+### 3. Check Log Files
 
-# Execute report generation
-result = generate_crm_report.delay()
-print(result.get())
+Monitor the following log files to verify everything is working:
 
-# Execute test task
-result = test_task.delay()
-print(result.get())
+```bash
+# CRM report logs
+tail -f /tmp/crm_report_log.txt
+
+# Customer cleanup logs  
+tail -f /tmp/customer_cleanup_log.txt
+
+# Order reminder logs
+tail -f /tmp/order_reminders_log.txt
+
+# Heartbeat logs
+tail -f /tmp/crm_heartbeat_log.txt
+
+# Low stock update logs
+tail -f /tmp/low_stock_updates_log.txt
+```
+
+## Scheduled Tasks Overview
+
+| Task | Schedule | Description | Log File |
+|------|----------|-------------|----------|
+| CRM Report | Weekly (Mon 6AM) | Generate weekly report via Celery Beat | `/tmp/crm_report_log.txt` |
+| Customer Cleanup | Weekly (Sun 2AM) | Remove inactive customers | `/tmp/customer_cleanup_log.txt` |
+| Order Reminders | Daily (8AM) | Send order reminders | `/tmp/order_reminders_log.txt` |
+| Heartbeat Logger | Every 5 minutes | System health check | `/tmp/crm_heartbeat_log.txt` |
+| Low Stock Updates | Every 12 hours | Update low stock products | `/tmp/low_stock_updates_log.txt` |
+
+## Project Structure
+
+```
+crm/
+├── __init__.py
+├── celery.py                 # Celery app configuration
+├── settings.py               # Django settings with Celery config
+├── tasks.py                  # Celery tasks
+├── cron.py                   # django-crontab functions
+├── schema.py                 # GraphQL schema and mutations
+├── urls.py                   # URL configuration
+├── wsgi.py                   # WSGI configuration
+├── cron_jobs/
+│   ├── clean_inactive_customers.sh
+│   ├── customer_cleanup_crontab.txt
+│   ├── send_order_reminders.py
+│   └── order_reminders_crontab.txt
+└── README.md                 # This file
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Redis Connection Issues
 
-1. **Redis Connection Error**
-   - Ensure Redis server is running: `redis-cli ping`
-   - Check Redis configuration in settings.py
-
-2. **Celery Worker Not Processing Tasks**
-   - Restart Celery worker: `celery -A crm worker -l info`
-   - Check for error messages in worker logs
-
-3. **Tasks Not Scheduled**
-   - Ensure Celery Beat is running: `celery -A crm beat -l info`
-   - Check database for scheduled tasks: `python manage.py shell` then `from django_celery_beat.models import PeriodicTask; print(PeriodicTask.objects.all())`
-
-4. **Permission Error on Log Files**
+1. Check if Redis is running:
    ```bash
-   sudo touch /tmp/crm_report_log.txt
-   sudo chmod 666 /tmp/crm_report_log.txt
+   redis-cli ping
+   ```
+   Should return: `PONG`
+
+2. Check Redis server status:
+   ```bash
+   sudo systemctl status redis-server  # Linux
+   brew services list | grep redis     # macOS
    ```
 
-### Development vs Production
+### Celery Issues
+
+1. Check worker status:
+   ```bash
+   celery -A crm inspect active
+   ```
+
+2. Purge all tasks:
+   ```bash
+   celery -A crm purge
+   ```
+
+3. Monitor task execution:
+   ```bash
+   celery -A crm events
+   ```
+
+### Cron Job Issues
+
+1. Check system cron logs:
+   ```bash
+   sudo tail -f /var/log/syslog | grep CRON  # Linux
+   tail -f /var/log/cron                     # macOS
+   ```
+
+2. Test scripts manually:
+   ```bash
+   ./crm/cron_jobs/clean_inactive_customers.sh
+   python crm/cron_jobs/send_order_reminders.py
+   ```
+
+### Django-crontab Issues
+
+1. Check if jobs are added:
+   ```bash
+   python manage.py crontab show
+   ```
+
+2. Test cron functions manually:
+   ```bash
+   python manage.py shell
+   >>> from crm.cron import log_crm_heartbeat
+   >>> log_crm_heartbeat()
+   ```
+
+## Environment Variables
+
+Create a `.env` file for production settings:
+
+```bash
+SECRET_KEY=your-production-secret-key
+DEBUG=False
+ALLOWED_HOSTS=your-domain.com
+REDIS_URL=redis://localhost:6379/0
+```
+
+## Production Deployment
 
 For production deployment:
-- Remove the test task from `CELERY_BEAT_SCHEDULE`
-- Use a proper message broker setup (Redis Cluster, RabbitMQ)
-- Configure proper logging with log rotation
-- Use process managers like Supervisor for Celery processes
-- Set up monitoring with tools like Flower
 
-## File Structure
+1. Use environment variables for sensitive settings
+2. Set up proper logging configuration
+3. Use process managers like Supervisor or systemd for Celery processes
+4. Configure Redis for persistence and security
+5. Set up monitoring for task failures
 
-```
-crm/
-├── __init__.py              # Celery app initialization
-├── celery.py               # Celery configuration
-├── settings.py             # Django settings with Celery config
-├── tasks.py                # Celery task definitions
-├── models.py               # Django models
-├── schema.py               # GraphQL schema
-├── urls.py                 # URL configuration
-└── README.md               # This file
-requirements.txt            # Python dependencies
-```
+## Development Commands
 
-## Testing
-
-Run Django tests:
 ```bash
-python manage.py test
+# Run Django server
+python manage.py runserver
+
+# Run Celery worker
+celery -A crm worker --loglevel=info
+
+# Run Celery Beat
+celery -A crm beat --loglevel=info
+
+# Add django-crontab jobs
+python manage.py crontab add
+
+# Create migrations
+python manage.py makemigrations
+
+# Apply migrations  
+python manage.py migrate
+
+# Create superuser
+python manage.py createsuperuser
 ```
 
-Test Celery tasks:
-```bash
-python manage.py shell
->>> from crm.tasks import test_task
->>> result = test_task.delay()
->>> result.get()
-```
+## Support
+
+For issues and questions:
+- Check the troubleshooting section above
+- Review Django, Celery, and Redis documentation
+- Check log files for detailed error messages
+
+## License
+
+This project is for educational purposes as part of the ALX Backend Specialization program.
