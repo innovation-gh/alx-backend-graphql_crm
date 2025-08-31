@@ -1,5 +1,4 @@
 # Django settings for CRM project with Celery Beat configuration
-# Add this to your existing settings.py file
 
 import os
 from pathlib import Path
@@ -24,6 +23,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'graphene_django',
+    'django_celery_beat',  # Add django-celery-beat to INSTALLED_APPS
     # Add your other apps here
     # 'customers',
     # 'orders',
