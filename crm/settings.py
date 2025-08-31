@@ -1,4 +1,4 @@
-# Django settings for CRM project with django-crontab configuration
+# Django settings for CRM project with Celery Beat configuration
 # Add this to your existing settings.py file
 
 import os
@@ -24,7 +24,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'graphene_django',
-    'django_crontab',  # Add django-crontab to INSTALLED_APPS
     # Add your other apps here
     # 'customers',
     # 'orders',
@@ -101,13 +100,40 @@ GRAPHENE = {
     'SCHEMA': 'crm.schema.schema'
 }
 
-# Django-crontab configuration
-CRONJOBS = [
-    ('*/5 * * * *', 'crm.cron.log_crm_heartbeat'),
-]
+# =============================================================================
+# CELERY CONFIGURATION
+# =============================================================================
 
-# Optional: Set crontab command suffix for better logging
-CRONTAB_COMMAND_SUFFIX = '2>&1'
+# Celery Configuration Options
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
 
-# Optional: Lock file to prevent overlapping cron jobs
-CRONTAB_LOCK_JOBS = True
+# Celery Broker settings
+CELERY_BROKER_URL = 'redis://localhost:6379'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379'
+
+# =============================================================================
+# CELERY BEAT CONFIGURATION
+# =============================================================================
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'generate-crm-report': {
+        'task': 'crm.tasks.generate_crm_report',
+        'schedule': crontab(hour=9, minute=0),  # Daily at 9 AM
+        'options': {'queue': 'default'}
+    },
+    'test-celery-task': {
+        'task': 'crm.tasks.test_task',
+        'schedule': crontab(minute='*/5'),  # Every 5 minutes
+        'options': {'queue': 'default'}
+    },
+}
+
+# Default queue for tasks
+CELERY_TASK_DEFAULT_QUEUE = 'default'
