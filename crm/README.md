@@ -1,39 +1,30 @@
-# CRM GraphQL Application Setup
+Here are the simplified steps for your CRM setup.
 
-## Setup Instructions
+---
 
-### 1. Install Redis and dependencies
-```bash
-pip install -r requirements.txt
-```
+## CRM Setup
 
-Install Redis:
-```bash
-# Ubuntu/Debian
-sudo apt install redis-server
-sudo systemctl start redis-server
+### Setup Steps
 
-# macOS
-brew install redis
-brew services start redis
-```
+1.  **Install Redis and dependencies**
+    * First, install the Python dependencies:
+        `pip install -r requirements.txt`
+    * Next, install and start Redis. Choose the command for your operating system:
+        * **Ubuntu/Debian**:
+            `sudo apt install redis-server`
+            `sudo systemctl start redis-server`
+        * **macOS**:
+            `brew install redis`
+            `brew services start redis`
 
-### 2. Run migrations
-```bash
-python manage.py migrate
-```
+2.  **Run migrations**
+    `python manage.py migrate`
 
-### 3. Start Celery worker
-```bash
-celery -A crm worker -l info
-```
+3.  **Start Celery worker**
+    `celery -A crm worker -l info`
 
-### 4. Start Celery Beat
-```bash
-celery -A crm beat -l info
-```
+4.  **Start Celery Beat**
+    `celery -A crm beat -l info`
 
-### 5. Verify logs in /tmp/crm_report_log.txt
-```bash
-tail -f /tmp/crm_report_log.txt
-```
+5.  **Verify logs**
+    `tail -f /tmp/crm_report_log.txt`
